@@ -1,93 +1,85 @@
-//#define BLYNK_PRINT Serial
-
-
-#include <Arduino.h>
-#include <WiFi.h>
-//#include <PubSubClient.h>
-//#include <ArduinoJson.h>
-#include <DHT.h>
-#include <Wire.h>
-//#include <BlynkSimpleEsp32.h>
+#include <ESP32Servo.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 
 #define SCREEN_WIDTH 128
 #define SCREEN_HEIGHT 64
-#define LED 16
 
-Adafruit_SSD1306 OLED(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
+Adafruit_SSD1306 display(
+  SCREEN_WIDTH,
+  SCREEN_HEIGHT,
+  &Wire,
+  -1
+);
 
+#define R 5
+#define Y 18
+#define G 19
 
-bool start = 0, stop = 0;
-
-// Sensor
-#define SENSOR 27
-QueueHandle_t sensorQueue;
-volatile int peo_cnt = 0;
-volatile bool detected = false;
-void sensor_task(void *parameter) {
-  bool state = 0;
-  while (true) {
-    state = digitalRead(SENSOR);
-
-    xQueueSend(sensorQueue, &state, portMAX_DELAY);
-
-    vTaskDelay(pdMS_TO_TICKS(50));
-  }
-}
-
-void calc_task(void *parameter) {
-  bool state = 0;
-  bool last_state = HIGH;
-  while (true) {
-    if (xQueueReceive(sensorQueue, &state, portMAX_DELAY)) {
-      if (last_state == HIGH && state == LOW) {
-        peo_cnt++;
-        detected = true;
-      }
-
-      if (state == HIGH) {
-        detected = false;
-      }
-
-      last_state = state;
-    }
-  }
-}
-void oled_task(void *parameter) {
-  while (true) {
-    OLED.clearDisplay();
-    OLED.setCursor(0, 20);
-    OLED.setTextColor(WHITE);
-    OLED.setTextSize(2);
-    Serial.print("People: ");
-    Serial.println(peo_cnt);
-    OLED.print("People:");
-    OLED.println(peo_cnt);
-    OLED.display();
-    vTaskDelay(pdMS_TO_TICKS(100));
-  }
-}
 void setup() {
+  // put your setup code here, to run once:
   Serial.begin(115200);
-  Serial.println("Start!");
-
-  pinMode(SENSOR, INPUT);
-  Wire.begin(21, 22);
-
-
-  if (!OLED.begin(SSD1306_SWITCHCAPVCC,0x3C)) {
-    Serial.println("OLED failed!");
+  if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
+    Serial.println("OLED is not found!");
     while (true);
-    return;
   }
 
-  sensorQueue = xQueueCreate(10, sizeof(bool));
+  display.clearDisplay();
+  display.setTextSize(2);
+  display.setCursor(60, 30);
+  display.setTextColor(WHITE);
+  Serial.println("Start!");
+  pinMode(R, OUTPUT);
+  pinMode(Y, OUTPUT);
+  pinMode(G, OUTPUT);
 
-  xTaskCreate(sensor_task, "Sensor Task", 4096, NULL, 1, NULL);
-  xTaskCreate(calc_task, "Calculator Task", 4096, NULL, 1, NULL);
-  xTaskCreate(oled_task, "OLED Task", 4096, NULL, 1, NULL);
+  digitalWrite(R, LOW);
+  digitalWrite(Y, LOW);
+  digitalWrite(G, LOW);
 }
+
 void loop() {
-  // Empty
+  delay(500);
+
+  // Phase 1: Red light (5 s)
+  digitalWrite(R, HIGH);
+
+  for (long i = 5000; i >= 0; i -= 1000) {
+    display.clearDisplay();
+    display.setTextSize(2);
+    display.setCursor(60, 30);
+    display.setTextColor(WHITE);
+    display.println(i / 1000);
+    display.display();
+    delay(1000);
+  }
+  digitalWrite(R, LOW);
+  // Phase 2: Yellow light (2 s)
+  digitalWrite(Y, HIGH);
+  
+  for (long i = 2000; i >= 0; i -= 1000) {
+    display.clearDisplay();
+    display.setTextSize(2);
+    display.setCursor(60, 30);
+    display.setTextColor(WHITE);
+    display.println(i / 1000);
+    display.display();
+    delay(1000);
+  }
+  digitalWrite(Y, LOW);
+  // Phase 3: Green light (3 s)
+  digitalWrite(G, HIGH);
+  
+  for (long i = 3000; i >= 0; i -= 3000) {
+    display.clearDisplay();
+    display.setTextSize(2);
+    display.setCursor(60, 30);
+    display.setTextColor(WHITE);
+    display.println(i / 1000);
+    display.display();
+    delay(1000);
+  }
+  digitalWrite(G, LOW);
+
+
 }
